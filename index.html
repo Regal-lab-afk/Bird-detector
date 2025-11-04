@@ -44,17 +44,20 @@
         <button onclick="fireLaser()">Fire Laser</button>
     </div>
 
+    <!-- TensorFlow.js -->
     <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.14.0/dist/tf.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/coco-ssd"></script>
+    <!-- YOLOv8 TF.js model (Tiny, fast) -->
+    <script type="module">
+        import * as tf from 'https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.14.0/dist/tf.min.js';
+        import { YOLO } from 'https://cdn.jsdelivr.net/npm/@ultralytics/yolov8/dist/yolov8.js';
 
-    <script>
         const video = document.getElementById('video');
         const canvas = document.getElementById('laserCanvas');
         const ctx = canvas.getContext('2d');
         const activeLasers = [];
 
         // Access iPhone camera
-        navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } })
+        navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment", width: 640, height: 480 } })
             .then(stream => {
                 video.srcObject = stream;
                 video.onloadedmetadata = () => {
@@ -65,17 +68,17 @@
             })
             .catch(err => { alert('Error accessing camera: ' + err); });
 
-        let modelPromise = cocoSsd.load();
+        // Load YOLOv8 Tiny model
+        const modelPromise = YOLO.load('https://ultralytics.com/assets/yolov8n-tfjs/model.json');
 
-        // Detect birds continuously
         async function detectBirds() {
             const model = await modelPromise;
             if(video.readyState === 4) {
                 const predictions = await model.detect(video);
                 ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-                // Draw birds
                 predictions.forEach(pred => {
+                    // Adjust label for birds (depends on YOLO labels)
                     if(pred.class === 'bird') {
                         const [x, y, width, height] = pred.bbox;
                         ctx.strokeStyle = 'lime';
@@ -121,10 +124,10 @@
             });
         }
 
+        // Draw animated lasers
         function drawLasers() {
             activeLasers.forEach((laser, index) => {
                 laser.progress += 0.05;
-
                 const x = laser.sx + (laser.tx - laser.sx) * laser.progress;
                 const y = laser.sy + (laser.ty - laser.sy) * laser.progress;
 
@@ -137,11 +140,10 @@
                 ctx.lineTo(x, y);
                 ctx.stroke();
 
-                if (laser.progress >= 1) {
-                    activeLasers.splice(index, 1);
-                }
+                if (laser.progress >= 1) activeLasers.splice(index, 1);
             });
         }
     </script>
 </body>
 </html>
+
