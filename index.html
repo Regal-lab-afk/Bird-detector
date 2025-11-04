@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Bird Detector Mobile</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        body { 
+            text-align: center; 
+            font-family: sans-serif; 
+            background: #222; 
+            color: #fff; 
+            margin: 0; 
+            padding: 0;
+        }
+        #container { 
+            position: relative; 
+            display: inline-block; 
+        }
+        video, canvas { 
+            width: 95vw; 
+            max-width: 640px; 
+            border: 2px solid #0f0; 
+        }
+        #laserCanvas { 
+            position: absolute; 
+            top: 0; 
+            left: 0; 
+        }
+        button { 
+            font-size: 18px; 
+            padding: 10px 20px; 
+            margin: 10px; 
+            cursor: pointer;
+        }
+    </style>
+</head>
+<body>
+    <h1>Bird Detector Mobile</h1>
+    <div id="container">
+        <video id="video" autoplay playsinline></video>
+        <canvas id="laserCanvas"></canvas>
+    </div>
+    <div>
+        <button onclick="fireLaser()">Fire Laser</button>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.14.0/dist/tf.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/coco-ssd"></script>
+
+    <script>
+        const video = document.getElementById('video');
+        const canvas = document.getElementById('laserCanvas');
+        const ctx = canvas.getContext('2d');
+        const activeLasers = [];
+
+        // Access iPhone camera
+        navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } })
+            .then(stream => {
+                video.srcObject = stream;
+                video.onloadedmetadata = () => {
+                    video.play();
+                    canvas.width = video.videoWidth;
+                    canvas.height = video.videoHeight;
+                };
+            })
+            .catch(err => { alert('Error accessing camera: ' + err); });
+
+        let modelPromise = cocoSsd.load();
+
+        // Detect birds continuously
+        async function detectBirds() {
+            const model = await modelPromise;
+            if(video.readyState === 4) {
+                const predictions = await model.detect(video);
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+                // Draw birds
+                predictions.forEach(pred => {
+                    if(pred.class === 'bird') {
+                        const [x, y, width, height] = pred.bbox;
+                        ctx.strokeStyle = 'lime';
+                        ctx.lineWidth = 3;
+                        ctx.strokeRect(x, y, width, height);
+                        ctx.font = "16px sans-serif";
+                        ctx.fillStyle = "lime";
+                        ctx.fillText(pred.class, x, y > 10 ? y-5 : y+15);
+                    }
+                });
+            }
+
+            drawLasers();
+            requestAnimationFrame(detectBirds);
+        }
+
+        detectBirds();
+
+        // Fire lasers at birds
+        function fireLaser() {
+            const w = canvas.width;
+            const h = canvas.height;
+            const laserStartX = w / 2;
+            const laserStartY = h;
+
+            modelPromise.then(async model => {
+                const predictions = await model.detect(video);
+                predictions.forEach(pred => {
+                    if(pred.class === 'bird') {
+                        const [x, y, width, height] = pred.bbox;
+                        const targetX = x + width/2;
+                        const targetY = y + height/2;
+
+                        activeLasers.push({
+                            sx: laserStartX,
+                            sy: laserStartY,
+                            tx: targetX,
+                            ty: targetY,
+                            progress: 0
+                        });
+                    }
+                });
+            });
+        }
+
+        function drawLasers() {
+            activeLasers.forEach((laser, index) => {
+                laser.progress += 0.05;
+
+                const x = laser.sx + (laser.tx - laser.sx) * laser.progress;
+                const y = laser.sy + (laser.ty - laser.sy) * laser.progress;
+
+                ctx.strokeStyle = `rgba(0, 255, 0, ${1 - laser.progress})`;
+                ctx.lineWidth = 4;
+                ctx.shadowColor = 'lime';
+                ctx.shadowBlur = 12;
+                ctx.beginPath();
+                ctx.moveTo(laser.sx, laser.sy);
+                ctx.lineTo(x, y);
+                ctx.stroke();
+
+                if (laser.progress >= 1) {
+                    activeLasers.splice(index, 1);
+                }
+            });
+        }
+    </script>
+</body>
+</html>
