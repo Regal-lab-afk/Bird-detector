@@ -3,19 +3,30 @@
 <head>
     <title>Bird Laser Camera</title>
     <style>
-        body {
+        body, html {
             margin: 0;
+            padding: 0;
             overflow: hidden;
-            position: relative;
+            width: 100%;
+            height: 100%;
             font-family: Arial, sans-serif;
+            position: relative;
         }
-        video, canvas {
+        video {
             position: absolute;
             top: 0;
             left: 0;
             width: 100%;
             height: 100%;
             object-fit: cover;
+            z-index: 1; /* behind everything */
+        }
+        canvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+            z-index: 2; /* on top of video */
+            pointer-events: none; /* allow button clicks to pass through */
         }
         #fireButton {
             position: absolute;
@@ -29,7 +40,7 @@
             border: none;
             border-radius: 10px;
             cursor: pointer;
-            z-index: 10;
+            z-index: 3; /* above canvas */
         }
     </style>
 </head>
@@ -47,7 +58,7 @@
         canvas.width = window.innerWidth;
         canvas.height = window.innerHeight;
 
-        // Simulated bird positions (for demo)
+        // Simulated bird positions
         const birds = [
             { x: 200, y: 150 },
             { x: 600, y: 300 },
@@ -59,18 +70,15 @@
             .then(stream => { video.srcObject = stream; })
             .catch(err => { console.error("Camera error:", err); });
 
-        // Draw birds and lasers
+        // Draw birds
         function draw() {
             ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-            // Draw birds
             birds.forEach(bird => {
                 ctx.fillStyle = 'red';
                 ctx.beginPath();
                 ctx.arc(bird.x, bird.y, 15, 0, 2 * Math.PI);
                 ctx.fill();
             });
-
             requestAnimationFrame(draw);
         }
         draw();
@@ -78,15 +86,14 @@
         // Fire laser effect
         function fireLaser() {
             birds.forEach(bird => {
-                let startX = canvas.width / 2;
-                let startY = canvas.height;
-                let endX = bird.x;
-                let endY = bird.y;
+                const startX = canvas.width / 2;
+                const startY = canvas.height;
+                const endX = bird.x;
+                const endY = bird.y;
 
-                // Animated laser beam
                 let laserLength = 0;
                 const maxLaserLength = Math.hypot(endX - startX, endY - startY);
-                
+
                 function animateLaser() {
                     ctx.strokeStyle = 'lime';
                     ctx.lineWidth = 4;
@@ -100,7 +107,7 @@
                     ctx.lineTo(currentX, currentY);
                     ctx.stroke();
 
-                    laserLength += 20; // speed
+                    laserLength += 20;
                     if (laserLength < maxLaserLength) {
                         requestAnimationFrame(animateLaser);
                     }
@@ -111,7 +118,7 @@
 
         fireButton.addEventListener('click', fireLaser);
 
-        // Optional: dynamically adjust canvas size on window resize
+        // Resize canvas
         window.addEventListener('resize', () => {
             canvas.width = window.innerWidth;
             canvas.height = window.innerHeight;
