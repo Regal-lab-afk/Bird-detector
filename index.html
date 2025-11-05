@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Bird Laser Camera</title>
+    <title>Camera Laser Test</title>
     <style>
         body, html {
             margin: 0;
@@ -12,7 +12,7 @@
             font-family: Arial, sans-serif;
             position: relative;
         }
-        video {
+        #camera {
             position: absolute;
             top: 0;
             left: 0;
@@ -20,13 +20,7 @@
             height: 100%;
             object-fit: cover;
             z-index: 1; /* behind everything */
-        }
-        canvas {
-            position: absolute;
-            top: 0;
-            left: 0;
-            z-index: 2; /* on top of video */
-            pointer-events: none; /* allow button clicks to pass through */
+            pointer-events: none; /* allows clicks to pass through */
         }
         #fireButton {
             position: absolute;
@@ -40,88 +34,25 @@
             border: none;
             border-radius: 10px;
             cursor: pointer;
-            z-index: 3; /* above canvas */
+            z-index: 10; /* above video */
         }
     </style>
 </head>
 <body>
     <video id="camera" autoplay></video>
-    <canvas id="overlay"></canvas>
     <button id="fireButton">Fire Laser</button>
 
     <script>
         const video = document.getElementById('camera');
-        const canvas = document.getElementById('overlay');
-        const ctx = canvas.getContext('2d');
         const fireButton = document.getElementById('fireButton');
-
-        canvas.width = window.innerWidth;
-        canvas.height = window.innerHeight;
-
-        // Simulated bird positions
-        const birds = [
-            { x: 200, y: 150 },
-            { x: 600, y: 300 },
-            { x: 400, y: 450 }
-        ];
 
         // Access camera
         navigator.mediaDevices.getUserMedia({ video: true })
             .then(stream => { video.srcObject = stream; })
-            .catch(err => { console.error("Camera error:", err); });
+            .catch(err => console.error("Camera error:", err));
 
-        // Draw birds
-        function draw() {
-            ctx.clearRect(0, 0, canvas.width, canvas.height);
-            birds.forEach(bird => {
-                ctx.fillStyle = 'red';
-                ctx.beginPath();
-                ctx.arc(bird.x, bird.y, 15, 0, 2 * Math.PI);
-                ctx.fill();
-            });
-            requestAnimationFrame(draw);
-        }
-        draw();
-
-        // Fire laser effect
-        function fireLaser() {
-            birds.forEach(bird => {
-                const startX = canvas.width / 2;
-                const startY = canvas.height;
-                const endX = bird.x;
-                const endY = bird.y;
-
-                let laserLength = 0;
-                const maxLaserLength = Math.hypot(endX - startX, endY - startY);
-
-                function animateLaser() {
-                    ctx.strokeStyle = 'lime';
-                    ctx.lineWidth = 4;
-                    ctx.shadowColor = 'lime';
-                    ctx.shadowBlur = 15;
-
-                    ctx.beginPath();
-                    const currentX = startX + (endX - startX) * (laserLength / maxLaserLength);
-                    const currentY = startY + (endY - startY) * (laserLength / maxLaserLength);
-                    ctx.moveTo(startX, startY);
-                    ctx.lineTo(currentX, currentY);
-                    ctx.stroke();
-
-                    laserLength += 20;
-                    if (laserLength < maxLaserLength) {
-                        requestAnimationFrame(animateLaser);
-                    }
-                }
-                animateLaser();
-            });
-        }
-
-        fireButton.addEventListener('click', fireLaser);
-
-        // Resize canvas
-        window.addEventListener('resize', () => {
-            canvas.width = window.innerWidth;
-            canvas.height = window.innerHeight;
+        fireButton.addEventListener('click', () => {
+            alert("Button works!");
         });
     </script>
 </body>
