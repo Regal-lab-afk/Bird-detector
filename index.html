@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <title>Bird Laser Tracker</title>
+  <title>Mobile Bird Laser Detector</title>
   <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs"></script>
   <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/coco-ssd"></script>
   <style>
@@ -48,7 +48,7 @@
   </style>
 </head>
 <body>
-  <video id="camera" autoplay muted></video>
+  <video id="camera" autoplay muted playsinline></video>
   <canvas id="overlay"></canvas>
   <button id="fireButton">Fire Laser</button>
 
@@ -65,24 +65,41 @@
     let birdsDetected = [];
     let lasers = [];
 
-    // Load model
-    cocoSsd.load().then(loadedModel => {
-      model = loadedModel;
+    // Load TensorFlow.js model
+    cocoSsd.load().then(m => {
+      model = m;
       console.log("Model loaded");
-      detectBirds();
+      startDetection();
     });
 
-    // Camera
-    navigator.mediaDevices.getUserMedia({ video: true })
+    // Access camera
+    navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } })
       .then(stream => { video.srcObject = stream; })
       .catch(err => console.error("Camera error:", err));
 
-    // Detect birds continuously
-    async function detectBirds() {
+    // Temporary canvas for downscaled detection
+    const tmpCanvas = document.createElement('canvas');
+    const tmpCtx = tmpCanvas.getContext('2d');
+    tmpCanvas.width = 320;
+    tmpCanvas.height = 240;
+
+    // Detect birds every 500ms (mobile-friendly)
+    async function startDetection() {
       if (!model) return;
-      const predictions = await model.detect(video);
-      birdsDetected = predictions.filter(p => p.class === 'bird');
-      requestAnimationFrame(detectBirds);
+      tmpCtx.drawImage(video, 0, 0, tmpCanvas.width, tmpCanvas.height);
+      const predictions = await model.detect(tmpCanvas);
+      birdsDetected = predictions
+        .filter(p => p.class === 'bird')
+        .map(b => ({
+          // Scale back to full canvas
+          bbox: [
+            b.bbox[0] * (canvas.width / tmpCanvas.width),
+            b.bbox[1] * (canvas.height / tmpCanvas.height),
+            b.bbox[2] * (canvas.width / tmpCanvas.width),
+            b.bbox[3] * (canvas.height / tmpCanvas.height)
+          ]
+        }));
+      setTimeout(startDetection, 500); // throttle detection
     }
 
     // Laser class
@@ -102,14 +119,12 @@
         const dx = this.targetX - this.currentX;
         const dy = this.targetY - this.currentY;
         const dist = Math.hypot(dx, dy);
-
         if (dist < this.speed) {
           this.currentX = this.targetX;
           this.currentY = this.targetY;
           this.done = true;
           return;
         }
-
         this.currentX += (dx / dist) * this.speed;
         this.currentY += (dy / dist) * this.speed;
       }
@@ -119,7 +134,6 @@
         ctx.lineWidth = 4;
         ctx.shadowColor = 'lime';
         ctx.shadowBlur = 15;
-
         ctx.beginPath();
         ctx.moveTo(canvas.width / 2, canvas.height);
         ctx.lineTo(this.currentX, this.currentY);
@@ -151,7 +165,7 @@
     }
     draw();
 
-    // Fire button
+    // Fire lasers
     fireButton.addEventListener('click', () => {
       birdsDetected.forEach(bird => {
         const centerX = bird.bbox[0] + bird.bbox[2]/2;
@@ -160,7 +174,7 @@
       });
     });
 
-    // Resize canvas
+    // Handle window resize
     window.addEventListener('resize', () => {
       canvas.width = window.innerWidth;
       canvas.height = window.innerHeight;
