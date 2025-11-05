@@ -1,59 +1,170 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Camera Laser Test</title>
-    <style>
-        body, html {
-            margin: 0;
-            padding: 0;
-            overflow: hidden;
-            width: 100%;
-            height: 100%;
-            font-family: Arial, sans-serif;
-            position: relative;
-        }
-        #camera {
-            position: absolute;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            object-fit: cover;
-            z-index: 1; /* behind everything */
-            pointer-events: none; /* allows clicks to pass through */
-        }
-        #fireButton {
-            position: absolute;
-            bottom: 20px;
-            left: 50%;
-            transform: translateX(-50%);
-            padding: 15px 30px;
-            font-size: 18px;
-            background-color: green;
-            color: white;
-            border: none;
-            border-radius: 10px;
-            cursor: pointer;
-            z-index: 10; /* above video */
-        }
-    </style>
+  <title>Bird Laser Tracker</title>
+  <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/coco-ssd"></script>
+  <style>
+    body, html {
+      margin: 0;
+      padding: 0;
+      overflow: hidden;
+      width: 100%;
+      height: 100%;
+      font-family: Arial, sans-serif;
+      position: relative;
+    }
+    video {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      z-index: 1;
+      pointer-events: none;
+    }
+    canvas {
+      position: absolute;
+      top: 0;
+      left: 0;
+      z-index: 2;
+      pointer-events: none;
+    }
+    #fireButton {
+      position: absolute;
+      bottom: 20px;
+      left: 50%;
+      transform: translateX(-50%);
+      padding: 15px 30px;
+      font-size: 18px;
+      background-color: green;
+      color: white;
+      border: none;
+      border-radius: 10px;
+      cursor: pointer;
+      z-index: 10;
+    }
+  </style>
 </head>
 <body>
-    <video id="camera" autoplay></video>
-    <button id="fireButton">Fire Laser</button>
+  <video id="camera" autoplay muted></video>
+  <canvas id="overlay"></canvas>
+  <button id="fireButton">Fire Laser</button>
 
-    <script>
-        const video = document.getElementById('camera');
-        const fireButton = document.getElementById('fireButton');
+  <script>
+    const video = document.getElementById('camera');
+    const canvas = document.getElementById('overlay');
+    const ctx = canvas.getContext('2d');
+    const fireButton = document.getElementById('fireButton');
 
-        // Access camera
-        navigator.mediaDevices.getUserMedia({ video: true })
-            .then(stream => { video.srcObject = stream; })
-            .catch(err => console.error("Camera error:", err));
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
 
-        fireButton.addEventListener('click', () => {
-            alert("Button works!");
-        });
-    </script>
+    let model;
+    let birdsDetected = [];
+    let lasers = [];
+
+    // Load model
+    cocoSsd.load().then(loadedModel => {
+      model = loadedModel;
+      console.log("Model loaded");
+      detectBirds();
+    });
+
+    // Camera
+    navigator.mediaDevices.getUserMedia({ video: true })
+      .then(stream => { video.srcObject = stream; })
+      .catch(err => console.error("Camera error:", err));
+
+    // Detect birds continuously
+    async function detectBirds() {
+      if (!model) return;
+      const predictions = await model.detect(video);
+      birdsDetected = predictions.filter(p => p.class === 'bird');
+      requestAnimationFrame(detectBirds);
+    }
+
+    // Laser class
+    class Laser {
+      constructor(targetX, targetY) {
+        this.startX = canvas.width / 2;
+        this.startY = canvas.height;
+        this.targetX = targetX;
+        this.targetY = targetY;
+        this.currentX = this.startX;
+        this.currentY = this.startY;
+        this.speed = 20; // pixels per frame
+        this.done = false;
+      }
+
+      update() {
+        const dx = this.targetX - this.currentX;
+        const dy = this.targetY - this.currentY;
+        const dist = Math.hypot(dx, dy);
+
+        if (dist < this.speed) {
+          this.currentX = this.targetX;
+          this.currentY = this.targetY;
+          this.done = true;
+          return;
+        }
+
+        this.currentX += (dx / dist) * this.speed;
+        this.currentY += (dy / dist) * this.speed;
+      }
+
+      draw(ctx) {
+        ctx.strokeStyle = 'lime';
+        ctx.lineWidth = 4;
+        ctx.shadowColor = 'lime';
+        ctx.shadowBlur = 15;
+
+        ctx.beginPath();
+        ctx.moveTo(canvas.width / 2, canvas.height);
+        ctx.lineTo(this.currentX, this.currentY);
+        ctx.stroke();
+      }
+    }
+
+    // Draw loop
+    function draw() {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+      // Draw birds
+      birdsDetected.forEach(bird => {
+        ctx.strokeStyle = 'lime';
+        ctx.lineWidth = 3;
+        ctx.strokeRect(bird.bbox[0], bird.bbox[1], bird.bbox[2], bird.bbox[3]);
+      });
+
+      // Draw lasers
+      lasers.forEach(laser => {
+        laser.update();
+        laser.draw(ctx);
+      });
+
+      // Remove finished lasers
+      lasers = lasers.filter(laser => !laser.done);
+
+      requestAnimationFrame(draw);
+    }
+    draw();
+
+    // Fire button
+    fireButton.addEventListener('click', () => {
+      birdsDetected.forEach(bird => {
+        const centerX = bird.bbox[0] + bird.bbox[2]/2;
+        const centerY = bird.bbox[1] + bird.bbox[3]/2;
+        lasers.push(new Laser(centerX, centerY));
+      });
+    });
+
+    // Resize canvas
+    window.addEventListener('resize', () => {
+      canvas.width = window.innerWidth;
+      canvas.height = window.innerHeight;
+    });
+  </script>
 </body>
 </html>
