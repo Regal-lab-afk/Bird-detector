@@ -1,61 +1,110 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Bird Detector Mobile</title>
-  <style>
-    body {
-      text-align: center;
-      font-family: sans-serif;
-      background: #111;
-      color: #fff;
-      margin: 0;
-      padding: 0;
-    }
-    #container {
-      position: relative;
-      display: inline-block;
-      margin-top: 20px;
-    }
-    video, canvas {
-      width: 95vw;
-      max-width: 640px;
-      border: 2px solid lime;
-      border-radius: 8px;
-    }
-    #laserCanvas {
-      position: absolute;
-      top: 0;
-      left: 0;
-    }
-    button {
-      font-size: 18px;
-      padding: 10px 20px;
-      margin: 15px;
-      background: lime;
-      border: none;
-      color: #111;
-      border-radius: 6px;
-      cursor: pointer;
-      transition: background 0.2s;
-    }
-    button:hover {
-      background: #00ff99;
-    }
-  </style>
+    <meta charset="UTF-8">
+    <title>Bird Tracker Camera</title>
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+            background: black;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+        }
+        #video {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+        #overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+        }
+    </style>
 </head>
 <body>
-  <h1>Bird Detector Mobile</h1>
-  <div id="container">
-    <!-- note: added muted for autoplay permission -->
-    <video id="video" autoplay playsinline muted></video>
-    <canvas id="laserCanvas"></canvas>
-  </div>
-  <div>
-    <button id="fireButton">Fire Laser</button>
-  </div>
+    <video id="video" autoplay playsinline></video>
+    <canvas id="overlay"></canvas>
 
-  <script type="module" src="./main.js"></script>
+    <script>
+        const video = document.getElementById('video');
+        const canvas = document.getElementById('overlay');
+        const ctx = canvas.getContext('2d');
+
+        function resizeCanvas() {
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+        }
+        window.addEventListener('resize', resizeCanvas);
+        resizeCanvas();
+
+        // Camera access
+        navigator.mediaDevices.getUserMedia({ video: true })
+            .then(stream => { video.srcObject = stream; })
+            .catch(err => {
+                console.error("Cannot access camera:", err);
+                alert("Cannot access camera: " + err);
+            });
+
+        // Laser overlay
+        let laserActive = false;
+        window.addEventListener('keydown', e => {
+            if (e.key === 'f') laserActive = !laserActive;
+        });
+
+        function drawLaser() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            if (laserActive) {
+                const cx = canvas.width / 2;
+                const cy = canvas.height / 2;
+
+                ctx.strokeStyle = 'lime';
+                ctx.lineWidth = 4;
+
+                // Center crosshair
+                ctx.beginPath();
+                ctx.moveTo(cx - 20, cy);
+                ctx.lineTo(cx + 20, cy);
+                ctx.moveTo(cx, cy - 20);
+                ctx.lineTo(cx, cy + 20);
+                ctx.stroke();
+
+                // Corner lines
+                ctx.lineWidth = 2;
+                const len = 50;
+                // Top-left
+                ctx.beginPath();
+                ctx.moveTo(0,0);
+                ctx.lineTo(len,len);
+                ctx.stroke();
+                // Top-right
+                ctx.beginPath();
+                ctx.moveTo(canvas.width,0);
+                ctx.lineTo(canvas.width-len,len);
+                ctx.stroke();
+                // Bottom-left
+                ctx.beginPath();
+                ctx.moveTo(0,canvas.height);
+                ctx.lineTo(len,canvas.height-len);
+                ctx.stroke();
+                // Bottom-right
+                ctx.beginPath();
+                ctx.moveTo(canvas.width,canvas.height);
+                ctx.lineTo(canvas.width-len,canvas.height-len);
+                ctx.stroke();
+            }
+
+            requestAnimationFrame(drawLaser);
+        }
+
+        drawLaser();
+    </script>
 </body>
 </html>
