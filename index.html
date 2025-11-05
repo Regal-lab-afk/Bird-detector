@@ -1,19 +1,15 @@
 <!DOCTYPE html>
-<html lang="en">
+<html>
 <head>
-    <meta charset="UTF-8">
-    <title>Bird Tracker Camera</title>
+    <title>Bird Laser Camera</title>
     <style>
         body {
             margin: 0;
             overflow: hidden;
-            background: black;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            height: 100vh;
+            position: relative;
+            font-family: Arial, sans-serif;
         }
-        #video {
+        video, canvas {
             position: absolute;
             top: 0;
             left: 0;
@@ -21,90 +17,105 @@
             height: 100%;
             object-fit: cover;
         }
-        #overlay {
+        #fireButton {
             position: absolute;
-            top: 0;
-            left: 0;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            padding: 15px 30px;
+            font-size: 18px;
+            background-color: green;
+            color: white;
+            border: none;
+            border-radius: 10px;
+            cursor: pointer;
+            z-index: 10;
         }
     </style>
 </head>
 <body>
-    <video id="video" autoplay playsinline></video>
+    <video id="camera" autoplay></video>
     <canvas id="overlay"></canvas>
+    <button id="fireButton">Fire Laser</button>
 
     <script>
-        const video = document.getElementById('video');
+        const video = document.getElementById('camera');
         const canvas = document.getElementById('overlay');
         const ctx = canvas.getContext('2d');
+        const fireButton = document.getElementById('fireButton');
 
-        function resizeCanvas() {
-            canvas.width = window.innerWidth;
-            canvas.height = window.innerHeight;
-        }
-        window.addEventListener('resize', resizeCanvas);
-        resizeCanvas();
+        canvas.width = window.innerWidth;
+        canvas.height = window.innerHeight;
 
-        // Camera access
+        // Simulated bird positions (for demo)
+        const birds = [
+            { x: 200, y: 150 },
+            { x: 600, y: 300 },
+            { x: 400, y: 450 }
+        ];
+
+        // Access camera
         navigator.mediaDevices.getUserMedia({ video: true })
             .then(stream => { video.srcObject = stream; })
-            .catch(err => {
-                console.error("Cannot access camera:", err);
-                alert("Cannot access camera: " + err);
-            });
+            .catch(err => { console.error("Camera error:", err); });
 
-        // Laser overlay
-        let laserActive = false;
-        window.addEventListener('keydown', e => {
-            if (e.key === 'f') laserActive = !laserActive;
-        });
-
-        function drawLaser() {
+        // Draw birds and lasers
+        function draw() {
             ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-            if (laserActive) {
-                const cx = canvas.width / 2;
-                const cy = canvas.height / 2;
+            // Draw birds
+            birds.forEach(bird => {
+                ctx.fillStyle = 'red';
+                ctx.beginPath();
+                ctx.arc(bird.x, bird.y, 15, 0, 2 * Math.PI);
+                ctx.fill();
+            });
 
-                ctx.strokeStyle = 'lime';
-                ctx.lineWidth = 4;
+            requestAnimationFrame(draw);
+        }
+        draw();
 
-                // Center crosshair
-                ctx.beginPath();
-                ctx.moveTo(cx - 20, cy);
-                ctx.lineTo(cx + 20, cy);
-                ctx.moveTo(cx, cy - 20);
-                ctx.lineTo(cx, cy + 20);
-                ctx.stroke();
+        // Fire laser effect
+        function fireLaser() {
+            birds.forEach(bird => {
+                let startX = canvas.width / 2;
+                let startY = canvas.height;
+                let endX = bird.x;
+                let endY = bird.y;
 
-                // Corner lines
-                ctx.lineWidth = 2;
-                const len = 50;
-                // Top-left
-                ctx.beginPath();
-                ctx.moveTo(0,0);
-                ctx.lineTo(len,len);
-                ctx.stroke();
-                // Top-right
-                ctx.beginPath();
-                ctx.moveTo(canvas.width,0);
-                ctx.lineTo(canvas.width-len,len);
-                ctx.stroke();
-                // Bottom-left
-                ctx.beginPath();
-                ctx.moveTo(0,canvas.height);
-                ctx.lineTo(len,canvas.height-len);
-                ctx.stroke();
-                // Bottom-right
-                ctx.beginPath();
-                ctx.moveTo(canvas.width,canvas.height);
-                ctx.lineTo(canvas.width-len,canvas.height-len);
-                ctx.stroke();
-            }
+                // Animated laser beam
+                let laserLength = 0;
+                const maxLaserLength = Math.hypot(endX - startX, endY - startY);
+                
+                function animateLaser() {
+                    ctx.strokeStyle = 'lime';
+                    ctx.lineWidth = 4;
+                    ctx.shadowColor = 'lime';
+                    ctx.shadowBlur = 15;
 
-            requestAnimationFrame(drawLaser);
+                    ctx.beginPath();
+                    const currentX = startX + (endX - startX) * (laserLength / maxLaserLength);
+                    const currentY = startY + (endY - startY) * (laserLength / maxLaserLength);
+                    ctx.moveTo(startX, startY);
+                    ctx.lineTo(currentX, currentY);
+                    ctx.stroke();
+
+                    laserLength += 20; // speed
+                    if (laserLength < maxLaserLength) {
+                        requestAnimationFrame(animateLaser);
+                    }
+                }
+                animateLaser();
+            });
         }
 
-        drawLaser();
+        fireButton.addEventListener('click', fireLaser);
+
+        // Optional: dynamically adjust canvas size on window resize
+        window.addEventListener('resize', () => {
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+        });
     </script>
 </body>
 </html>
