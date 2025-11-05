@@ -6,38 +6,50 @@ const canvas = document.getElementById("laserCanvas");
 const ctx = canvas.getContext("2d");
 const activeLasers = [];
 
-// Request camera
-navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } })
+// SAFER CAMERA INITIALIZATION
+navigator.mediaDevices
+  .getUserMedia({ video: { facingMode: "environment" } })
   .then(stream => {
     video.srcObject = stream;
     video.onloadedmetadata = () => {
       video.play();
-      canvas.width = video.videoWidth;
-      canvas.height = video.videoHeight;
+      // Delay to ensure dimensions are ready
+      setTimeout(() => {
+        canvas.width = video.videoWidth || 640;
+        canvas.height = video.videoHeight || 480;
+        console.log("Camera ready:", canvas.width, canvas.height);
+      }, 500);
     };
   })
-  .catch(err => alert("Camera error: " + err.message));
+  .catch(err => {
+    console.error("Camera error:", err);
+    alert("Camera error: " + err.message);
+  });
 
-// Load YOLO model
+// Load YOLOv8 model
 const modelPromise = YOLO.load("https://ultralytics.com/assets/yolov8n-tfjs/model.json");
 
 async function detectBirds() {
   const model = await modelPromise;
   if (video.readyState === 4) {
-    const predictions = await model.detect(video);
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    try {
+      const predictions = await model.detect(video);
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-    predictions.forEach(pred => {
-      if (pred.class === "bird") {
-        const [x, y, width, height] = pred.bbox;
-        ctx.strokeStyle = "lime";
-        ctx.lineWidth = 3;
-        ctx.strokeRect(x, y, width, height);
-        ctx.font = "16px sans-serif";
-        ctx.fillStyle = "lime";
-        ctx.fillText(pred.class, x, y > 10 ? y - 5 : y + 15);
-      }
-    });
+      predictions.forEach(pred => {
+        if (pred.class === "bird") {
+          const [x, y, width, height] = pred.bbox;
+          ctx.strokeStyle = "lime";
+          ctx.lineWidth = 3;
+          ctx.strokeRect(x, y, width, height);
+          ctx.font = "16px sans-serif";
+          ctx.fillStyle = "lime";
+          ctx.fillText(pred.class, x, y > 10 ? y - 5 : y + 15);
+        }
+      });
+    } catch (err) {
+      console.warn("Detection error:", err);
+    }
   }
 
   drawLasers();
@@ -76,7 +88,7 @@ function fireLaser() {
   });
 }
 
-// Animated glowing, pulsing lasers
+// Detailed glowing, pulsing lasers
 function drawLasers() {
   activeLasers.forEach((laser, index) => {
     laser.progress += 0.04;
@@ -88,23 +100,23 @@ function drawLasers() {
     const opacity = 1 - laser.progress;
     const pulseWidth = 3 + Math.sin(laser.pulse) * 2;
 
-    // Create a gradient for laser beam
+    // Create a green gradient beam
     const grad = ctx.createLinearGradient(laser.sx, laser.sy, x, y);
     grad.addColorStop(0, `rgba(0, 255, 0, ${opacity})`);
-    grad.addColorStop(0.5, `rgba(100, 255, 100, ${opacity * 0.8})`);
+    grad.addColorStop(0.5, `rgba(180, 255, 180, ${opacity * 0.9})`);
     grad.addColorStop(1, `rgba(255, 255, 255, ${opacity * 0.5})`);
 
     ctx.lineWidth = pulseWidth;
     ctx.strokeStyle = grad;
     ctx.shadowColor = "lime";
-    ctx.shadowBlur = 20;
+    ctx.shadowBlur = 25;
 
     ctx.beginPath();
     ctx.moveTo(laser.sx, laser.sy);
     ctx.lineTo(x, y);
     ctx.stroke();
 
-    // Explosion effect when hit
+    // When laser hits target
     if (laser.progress >= 1) {
       drawHitEffect(x, y);
       activeLasers.splice(index, 1);
@@ -112,7 +124,7 @@ function drawLasers() {
   });
 }
 
-// Small burst effect
+// Hit sparkle effect
 function drawHitEffect(x, y) {
   for (let i = 0; i < 8; i++) {
     const angle = Math.random() * Math.PI * 2;
